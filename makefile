@@ -18,7 +18,7 @@ GPP_VERSION33 := \
 GPP_VERSION4 := \
   $(shell $(CROSS_COMPILE)g++ --version | grep g++ | sed 's/.*g++ (.*) //g' | sed 's/\..*//' | grep 4)
 
-GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always --tags || echo "?????")
+GIT_VERSION := $(shell (git describe --abbrev=4 --dirty --always --tags || echo "?????") | sed s/-dirty/D/)
 
 ifeq "$(GPP_VERSION33)" "3"
   CC = g++-3.3
@@ -29,17 +29,21 @@ else
 endif
 # ---------------------- armv6 (raspberry) specific ---------------------------
 ifeq ($(PLATTFORM), armv6)
+OUT	:= $(if $(OUT),$(OUT),out-armv6/)
 ARCHSPEC = -march=armv6zk -mfpu=vfp -mfloat-abi=hard -mcpu=arm1176jzf-s
 LFLAGS =
 # ---------------------- armv7hf (bur am335x pp) specific ---------------------
 else ifeq ($(PLATTFORM), armv7hf)
+OUT	:= $(if $(OUT),$(OUT),out-armv7hf/)
 ARCHSPEC = -march=armv7-a -mfpu=neon -mfloat-abi=hard -mcpu=cortex-a8
 LFLAGS = 
 # -------------------------- x86 (default) specific ---------------------------
 else ifeq ($(HOSTARCH), x86_64)
+OUT	:= $(if $(OUT),$(OUT),out-x86_64/)
 ARCHSPEC = -m32
 LFLAGS   = -m32
 endif
+OUT	:= $(if $(OUT),$(OUT),out-x86_32/)
 
 INC =
 LIB =
@@ -104,53 +108,59 @@ VERSION_NO_DOT := $(shell grep VNUM mail.h | tr '"' '\n' | grep "1" | tr -d '.')
 SRCDIR = obcm-$(VERSION)
 TGZ = s$(SRCDIR).tgz
 
-all: $(PROGRAM)
+all: prepare $(OUT)$(PROGRAM)
 
-.cpp.o: $(BCM_OBJ:%.o=%.cpp)
-	@echo Compiling $<
-	@$(CC) $(DEF_BCM) $(CFLAGS) -c $<
+$(OUT)%.o: %.cpp
+	@echo [compiling] $@
+	@$(CC) $(DEF_BCM) $(CFLAGS) -o $@ -c $<
 
-l1main_l.o: l1main_l.cpp
-	@echo Compiling $<
-	@$(CC) $(DEF_L2) $(CFLAGS) -c $<
+$(OUT)ax_util.o: ax_util.cpp
+	@echo [compiling] $@
+	@$(CC) $(DEF_BCM) $(CFLAGS) -o $@ -c $<
 
-l1kiss_l.o:  l1kiss_l.cpp
-	@echo Compiling $<
-	@$(CC) $(DEF_L2) $(CFLAGS) -c $<
+$(OUT)l1main_l.o: l1main_l.cpp
+	@echo [compiling] $@
+	@$(CC) $(DEF_L2) $(CFLAGS) -o $@ -c $<
 
-l1axip_l.o:  l1axip_l.cpp
-	@echo Compiling $<
-	@$(CC) $(DEF_L2) $(CFLAGS) -c $<
+$(OUT)l1kiss_l.o:  l1kiss_l.cpp
+	@echo [compiling] $@
+	@$(CC) $(DEF_L2) $(CFLAGS) -o $@ -c $<
 
-l2host.o: l2host.cpp
-	@echo Compiling $<
-	@$(CC) $(DEF_L2) $(CFLAGS) -c $<
+$(OUT)l1axip_l.o: l1axip_l.cpp
+	@echo [compiling] $@
+	@$(CC) $(DEF_L2) $(CFLAGS) -o $@ -c $<
 
-l2info.o: l2info.cpp
-	@echo Compiling $<
-	@$(CC) $(DEF_L2) $(CFLAGS) -c $<
+$(OUT)l2host.o: l2host.cpp
+	@echo [compiling] $@
+	@$(CC) $(DEF_L2) $(CFLAGS) -o $@ -c $<
 
-l2interf.o: l2interf.cpp
-	@echo Compiling $<
-	@$(CC) $(DEF_L2) $(CFLAGS) -c $<
+$(OUT)l2info.o: l2info.cpp
+	@echo [compiling] $@
+	@$(CC) $(DEF_L2) $(CFLAGS) -o $@ -c $<
 
-l2main_l.o: l2main_l.cpp
-	@echo Compiling $<
-	@$(CC) $(DEF_L2) $(CFLAGS) -c $<
+$(OUT)l2interf.o: l2interf.cpp
+	@echo [compiling] $@
+	@$(CC) $(DEF_L2) $(CFLAGS) -o $@ -c $<
 
-l2mhlist.o: l2mhlist.cpp
-	@echo Compiling $<
-	@$(CC) $(DEF_L2) $(CFLAGS) -c $<
+$(OUT)l2main_l.o: l2main_l.cpp
+	@echo [compiling] $@
+	@$(CC) $(DEF_L2) $(CFLAGS) -o $@ -c $<
 
-l2proto.o: l2proto.cpp
-	@echo Compiling $<
-	@$(CC) $(DEF_L2) $(CFLAGS) -c $<
+$(OUT)l2mhlist.o: l2mhlist.cpp
+	@echo [compiling] $@
+	@$(CC) $(DEF_L2) $(CFLAGS) -o $@ -c $<
 
-l2util.o: l2util.cpp
-	@echo Compiling $<
-	@$(CC) $(DEF_L2) $(CFLAGS) -c $<
+$(OUT)l2proto.o: l2proto.cpp
+	@echo [compiling] $@
+	@$(CC) $(DEF_L2) $(CFLAGS) -o $@ -c $<
 
-prepare: 
+$(OUT)l2util.o: l2util.cpp
+	@echo [compiling] $@
+	@$(CC) $(DEF_L2) $(CFLAGS) -o $@ -c $<
+
+prepare:
+	@test -d $(OUT) || mkdir -p $(OUT)
+
 ifeq "$(GPP_VERSION3)" "3"
 	@echo "Usage of GCC 3.x compiler..."  
 else
@@ -163,148 +173,32 @@ else
  endif
 endif
 
-$(PROGRAM): prepare $(L2_OBJ) $(BCM_OBJ)
-	@echo Linking OpenBCM version $(VERSION)...
-	$(LD) -o $(PROGRAM) $(L2_OBJ) $(BCM_OBJ) $(LD_OPT)
-	$(CROSS_COMPILE)strip $(PROGRAM)
+$(OUT)$(PROGRAM): prepare  $(addprefix $(OUT),$(L2_OBJ)) $(addprefix $(OUT),$(BCM_OBJ))
+	@echo [ linking ] OpenBCM version $(GIT_VERSION)...
+	@$(LD) -o $(OUT)$(PROGRAM) \
+	$(addprefix $(OUT),$(L2_OBJ)) \
+	$(addprefix $(OUT),$(BCM_OBJ)) \
+	$(LD_OPT)
+	@$(CROSS_COMPILE)strip $(OUT)$(PROGRAM)
 
-lib:    libbcm.a
+lib: libbcm.a
 
-libbcm.a: $(L2_OBJ) $(BCM_OBJ)
-	@echo Creating libbcm.a ...
-	@ar r libbcm.a $(L2_OBJ) $(BCM_OBJ)
+libbcm.a: prepare  $(addprefix $(OUT),$(L2_OBJ)) $(addprefix $(OUT),$(BCM_OBJ))
+	@echo [ linking ] libbcm.a ...
+	@$(CROSS_COMPILE)ar r $(OUT)libbcm.a \
+	$(addprefix $(OUT),$(L2_OBJ)) \
+	$(addprefix $(OUT),$(BCM_OBJ))
 
 clean:
 	@echo Removing obsolete files ...
-	rm -f *.o *.obj *~ *.bak *.sym *.ncb *.plg *.rej *.orig $(PROGRAM)
+	rm -r -f *.obj *~ *.bak *.sym *.ncb *.plg *.rej *.orig $(PROGRAM) $(OUT)
 
-install: all
-	@echo Making backup of old version as ../../bcm.old
-	@echo copying new bcm to ../../obcm-$(VERSION)
-	@echo and installing ../../obcm-$(VERSION) as ../../bcm
-	@mv -f ../../bcm ../../bcm.old
-	@cp -fa bcm ../../obcm-$(VERSION)
-	@cp -fa bcm ../../bcm
+new: clean all
 
-rpminstall: all
-	@echo Making backup of old version as ../../bcm.old
-	@echo copying new bcm to ../../obcm-$(VERSION)
-	@echo and installing ../../obcm-$(VERSION) as ../../bcm
-	@mv -f /bcm/bcm /bcm/bcm.old
-	@cp -fa bcm /bcm/obcm-$(VERSION)
-	@ln -s /bcm/obcm-$(VERSION) /bcm/bcm
-
-new:    clean all
-
-rpm:
-	@echo "# spec file for package obcm" > obcm.spec
-	@echo "#" >> obcm.spec
-	@echo "# Copyright (c) 2013 DH8YMB Markus Baumann, Lippstadt, Germany" >> obcm.spec
-	@echo " " >> obcm.spec
-	@echo "Summary: OpenBCM Packet Radio BBS" >> obcm.spec
-	@echo "Name: obcm" >> obcm.spec
-	@echo "Version: $(VERSION)" >> obcm.spec
-	@echo "Release: 1" >> obcm.spec
-	@echo "License: GPL" >> obcm.spec
-	@echo "Group: unsorted" >> obcm.spec
-	@echo "URL: http://dnx274.org/baybox" >> obcm.spec
-	@echo "Source: sobcm-%{version}.tgz" >> obcm.spec
-	@echo "BuildRoot: /var/tmp/%{name}-%{version}-root" >> obcm.spec
-	@echo "Distribution: none" >> obcm.spec
-	@echo "Vendor: Markus Baumann, DH8YMB, Lippstadt, Germany" >> obcm.spec
-	@echo "Packager: Markus Baumann DH8YMB <dh8ymb(at)web.de>" >> obcm.spec
-	@echo " " >> obcm.spec
-	@echo "%description" >> obcm.spec
-	@echo "OpenBCM is a full featured AX.25 packet radio mailbox for use" >> obcm.spec
-	@echo "in ham radio as well as in citizen band with full store and forward" >> obcm.spec
-	@echo "capabilities. It offers also a lot of TCP/IP services like HTTP," >> obcm.spec
-	@echo "NNTP, POP3, SMTP and TELNET. The software is available for Linux," >> obcm.spec
-	@echo "DOS and Windows NT/2000/XP." >> obcm.spec
-	@echo " " >> obcm.spec
-	@echo "Authors:" >> obcm.spec
-	@echo "  Markus Baumann, DH8YMB" >> obcm.spec
-	@echo "  Dietmar Zlabinger, OE3DZW" >> obcm.spec
-	@echo "  Florian Radlheer, DL8MBT" >> obcm.spec
-	@echo "  Johann Hanne, DH3MB" >> obcm.spec
-	@echo "  Patrick Sesseler, DF3VI" >> obcm.spec
-	@echo "  et al." >> obcm.spec
-	@echo " " >> obcm.spec
-	@echo "%prep" >> obcm.spec
-	@echo " " >> obcm.spec
-	@echo "%setup" >> obcm.spec
-	@echo " " >> obcm.spec
-	@echo "%build" >> obcm.spec
-	@echo "make" >> obcm.spec
-	@echo " " >> obcm.spec
-	@echo "%install" >> obcm.spec
-	@echo "make rpminstall" >> obcm.spec
-	@echo "rm -f %{buildroot}/bcm/bcm" >> obcm.spec
-	@echo "mkdir -p %{buildroot}/bcm" >> obcm.spec
-	@echo "mkdir -p %{buildroot}/bcm/msg" >> obcm.spec
-	@echo "cp -f changes.txt %{buildroot}/bcm" >> obcm.spec
-	@echo "cp -f /bcm/startbcm %{buildroot}/bcm" >> obcm.spec
-	@echo "cp -f /bcm/msg/help.dl %{buildroot}/bcm/msg" >> obcm.spec
-	@echo "cp -f /bcm/msg/help.gb %{buildroot}/bcm/msg" >> obcm.spec
-	@echo "cp -f bcm %{buildroot}/bcm" >> obcm.spec
-	@echo " " >> obcm.spec
-	@echo "%clean" >> obcm.spec
-	@echo "rm -f /bcm/bcm" >> obcm.spec
-	@echo "rm -f /bcm/changes.txt" >> obcm.spec
-	@echo " " >> obcm.spec
-	@echo "%files" >> obcm.spec
-	@echo "/bcm/bcm" >> obcm.spec
-	@echo "/bcm/startbcm" >> obcm.spec
-	@echo "/bcm/changes.txt" >> obcm.spec
-	@echo "/bcm/msg/help.dl" >> obcm.spec
-	@echo "/bcm/msg/help.gb" >> obcm.spec
-	@echo " " >> obcm.spec
-	@echo Setting up modes ...
-	@chmod a-x `find . -type f`
-	@echo Copying files ...
-	@rm -rf $(SRCDIR)
-	@mkdir $(SRCDIR)
-	@cp -a `find . -type f`  $(SRCDIR)
-	@echo Preparing files for archive ...
-	@rm -f $(SRCDIR)/*.tgz $(SRCDIR)/*.zip $(SRCDIR)/*.o $(SRCDIR)/*~ \
-		$(SRCDIR)/*.bak $(SRCDIR)/*.sym $(SRCDIR)/*.ncb \
-		$(SRCDIR)/*.plg $(SRCDIR)/$(PROGRAM) $(SRCDIR)/*.orig \
-		$(SRCDIR)/*.rej $(SRCDIR)/*.md5
-	@md5sum -b *.cpp *.h > $(SRCDIR)/$(SRCDIR).md5
-	@touch $(SRCDIR)/*
-	@echo Creating $(TGZ) ...
-	@tar zcf $(TGZ) $(SRCDIR)
-	@rm -rf $(SRCDIR)
-	@echo Creating RPM-File
-	@cp *.tgz /usr/src/packages/SOURCES
-	@rpmbuild -ba obcm.spec
-	@rm -f obcm.spec
-	@cp /usr/src/packages/BUILD/obcm-$(VERSION)/bcm /bcm/obcm-$(VERSION)
-	@ln -s /bcm/obcm-$(VERSION) /bcm/bcm
-	
-distribute: rpm
-	@cp *.tgz /http/htdocs/baybox/pre
-	@cp changes.txt /http/htdocs/baybox/pre
-	@cp /usr/src/packages/SRPMS/obcm-$(VERSION)-1.src.rpm /http/htdocs/baybox/pre
-	@cp /usr/src/packages/RPMS/i586/obcm-$(VERSION)-1.i586.rpm /http/htdocs/baybox/pre/obcm-$(VERSION)-1.i586_OpenSuse_11.2.rpm
-
-tgz: $(TGZ)
-
-$(TGZ):
-	@echo Setting up modes ...
-	@chmod a-x `find . -type f`
-	@echo Copying files ...
-	@rm -rf $(SRCDIR)
-	@mkdir $(SRCDIR)
-	@cp -a `find . -type f`  $(SRCDIR)
-	@echo Preparing files for archive ...
-	@rm -f $(SRCDIR)/*.tgz $(SRCDIR)/*.zip $(SRCDIR)/*.o $(SRCDIR)/*~ \
-		$(SRCDIR)/*.bak $(SRCDIR)/*.sym $(SRCDIR)/*.ncb \
-		$(SRCDIR)/*.plg $(SRCDIR)/$(PROGRAM) $(SRCDIR)/*.orig \
-		$(SRCDIR)/*.rej $(SRCDIR)/*.md5
-	@md5sum -b *.cpp *.h > $(SRCDIR)/$(SRCDIR).md5
-	@touch $(SRCDIR)/*
-	@echo Creating $(TGZ) ...
-	@tar zcf $(TGZ) $(SRCDIR)
-	@rm -rf $(SRCDIR)
+diag:
+	@echo "Hostarch    : $(HOSTARCH)"
+	@echo "BuildOutput : $(OUT)"
+	@echo "Platform    : $(PLATTFORM)"
+	@echo "Version     : $(GIT_VERSION)"
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
